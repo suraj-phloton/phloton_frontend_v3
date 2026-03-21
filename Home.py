@@ -15,8 +15,16 @@ from users_ui.users.users_units_dashboard import drawUsersDashboard
 
 st.set_page_config(page_title="Phloton IoT Dashboard", layout="wide")
 
+# ✅ fix — pause autorefresh when any report modal is open
 refresh_interval = 30000
-st_autorefresh(interval=refresh_interval, limit=None, key="auto-refresh-handler")
+
+any_report_open = any(
+    st.session_state.get(f"show_report_modal_{i}", False)
+    for i in range(1, 22)
+)
+
+if not any_report_open:
+    st_autorefresh(interval=refresh_interval, limit=None, key="auto-refresh-handler")
 
 
 # --------------- HELPER FUNCTIONS -----------------------
