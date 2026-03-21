@@ -161,6 +161,8 @@ def _draw_report_modal(unit_number: int, node_id: str, node_client):
                 to_epoch=to_epoch,
                 chunk_days=1,
             )
+            html_str = generate_report_html(...)
+st.session_state[f"report_stats_{unit_number}"] = _last_report_stats  # see below
 
             filename = (
                 f"Phloton_Unit{unit_number}"
