@@ -1,4 +1,4 @@
-# Phloton V2 Frontend by Anedya
+# Phloton V3 Frontend 
 
 
 ## Project Setup Instructions
