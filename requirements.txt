@@ -17,4 +17,6 @@ pytz
 requests
 streamlit-autorefresh
 streamviz
+weasyprint
+matplotlib
 # google-cloud             <0.34.0
