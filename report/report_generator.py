@@ -279,7 +279,7 @@ def generate_report_html(
         stats = _build_stats(all_data, from_epoch, to_epoch)
         status.update(label="✅ Report ready!", state="complete")
 
-    return _render_html(stats, unit_number, node_id)
+    return _render_html(stats, unit_number, node_id), stats
 
 
 # ─────────────────────────────────────────────────────────────────────────────
