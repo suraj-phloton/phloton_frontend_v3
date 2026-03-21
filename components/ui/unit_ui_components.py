@@ -1,10 +1,9 @@
 import streamlit as st
 import streamviz as sv
-from datetime import datetime
+from datetime import datetime, date, time
 import pytz
-import numpy as np
 import pandas as pd
-import time
+import time as time_module
 import json
 from components.charts import draw_chart
 from components.ui.time_range_controller import (
@@ -18,11 +17,11 @@ from components.ui.time_range_controller import (
 is_options_changed = False
 
 
-def unit_header(title, des=None, node_client=None, device_status_res=None):
+def unit_header(title, des=None, node_client=None, device_status_res=None, unit_number=1, node_id=""):
     if title is None:
         st.error("Please provide a valid title.")
     VARIABLES = st.session_state.variablesIdentifier
-    headercols = st.columns([1, 0.09, 0.11, 0.12, 0.12], gap="small")
+    headercols = st.columns([1, 0.09, 0.11, 0.12, 0.12, 0.18], gap="small")
     with headercols[0]:
         st.title(title, anchor=False)
     with headercols[1]:
@@ -55,8 +54,134 @@ def unit_header(title, des=None, node_client=None, device_status_res=None):
         if logout:
             st.session_state.LoggedIn = False
             st.rerun()
+    with headercols[5]:
+        # ── REPORT BUTTON ──────────────────────────────────────────
+        report_btn = st.button("📄 Report", use_container_width=True, type="primary")
+        if report_btn:
+            st.session_state[f"show_report_modal_{unit_number}"] = True
+
     if des is not None:
         st.markdown(des)
+
+    # ── REPORT MODAL (date range picker + generate) ────────────────
+    _draw_report_modal(unit_number, node_id, node_client)
+
+
+def _draw_report_modal(unit_number: int, node_id: str, node_client):
+    """
+    Renders a date/time range picker and Generate button.
+    When clicked, fetches data and triggers a download of the HTML report.
+    """
+    modal_key = f"show_report_modal_{unit_number}"
+    if not st.session_state.get(modal_key, False):
+        return
+
+    st.divider()
+    with st.container(border=True):
+        col_title, col_close = st.columns([5, 1])
+        with col_title:
+            st.subheader(f"📄 Generate Report — Unit {unit_number}", anchor=False)
+        with col_close:
+            if st.button("✕ Close", key=f"close_report_{unit_number}"):
+                st.session_state[modal_key] = False
+                st.rerun()
+
+        india_tz = pytz.timezone("Asia/Kolkata")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.caption("**From**")
+            fc1, fc2 = st.columns(2)
+            with fc1:
+                from_date = st.date_input(
+                    "From date",
+                    value=date.today(),
+                    key=f"rep_from_date_{unit_number}",
+                    label_visibility="collapsed",
+                )
+            with fc2:
+                from_time_val = st.time_input(
+                    "From time",
+                    value=time(0, 0),
+                    key=f"rep_from_time_{unit_number}",
+                    label_visibility="collapsed",
+                )
+        with col2:
+            st.caption("**To**")
+            tc1, tc2 = st.columns(2)
+            with tc1:
+                to_date = st.date_input(
+                    "To date",
+                    value=date.today(),
+                    key=f"rep_to_date_{unit_number}",
+                    label_visibility="collapsed",
+                )
+            with tc2:
+                to_time_val = st.time_input(
+                    "To time",
+                    value=time(23, 59, 59),
+                    key=f"rep_to_time_{unit_number}",
+                    label_visibility="collapsed",
+                )
+
+        # Convert to epoch
+        from_dt = india_tz.localize(datetime.combine(from_date, from_time_val))
+        to_dt   = india_tz.localize(datetime.combine(to_date,   to_time_val))
+        from_epoch = int(from_dt.timestamp())
+        to_epoch   = int(to_dt.timestamp())
+
+        duration_days = (to_epoch - from_epoch) / 86400
+        st.caption(
+            f"📅 Range: **{from_dt.strftime('%Y-%m-%d %H:%M')}** → **{to_dt.strftime('%Y-%m-%d %H:%M')}**"
+            f"  |  Duration: **{duration_days:.1f} days**  |  ~{duration_days:.0f} chunk(s) to fetch"
+        )
+
+        if from_epoch >= to_epoch:
+            st.error("'From' must be before 'To'.")
+            return
+
+        if duration_days > 90:
+            st.warning("⚠ Range > 90 days may take a few minutes.")
+
+        if st.button(
+            "⚡ Generate & Download Report",
+            key=f"gen_report_btn_{unit_number}",
+            type="primary",
+            use_container_width=True,
+        ):
+            # Import here to avoid circular imports at module load
+            from report.report_generator import generate_report_html
+
+            html_str = generate_report_html(
+                node_client=node_client,
+                unit_number=unit_number,
+                node_id=node_id,
+                variables=st.session_state.variablesIdentifier,
+                from_epoch=from_epoch,
+                to_epoch=to_epoch,
+                chunk_days=1,
+            )
+
+            filename = (
+                f"Phloton_Unit{unit_number}"
+                f"_{from_dt.strftime('%Y%m%d')}"
+                f"_to_{to_dt.strftime('%Y%m%d')}.html"
+            )
+
+            st.download_button(
+                label="⬇ Download Report (HTML)",
+                data=html_str.encode("utf-8"),
+                file_name=filename,
+                mime="text/html",
+                use_container_width=True,
+            )
+            st.info(
+                "💡 **To save as PDF:** Open the downloaded file in Chrome/Edge → "
+                "press **Ctrl+P** (or Cmd+P on Mac) → choose **'Save as PDF'** → Print. "
+                "The report is print-optimised."
+            )
+
+    st.divider()
 
 
 def unit_details(node_client=None):
@@ -76,7 +201,7 @@ def gauge_section(data: list = None):
     VARIABLES = st.session_state.variablesIdentifier
     with container:
         if data[4] != 0:
-            indian_time_zone = pytz.timezone("Asia/Kolkata")  # set time zone
+            indian_time_zone = pytz.timezone("Asia/Kolkata")
             hr_timestamp = datetime.fromtimestamp(data[4], indian_time_zone)
             fm_hr_timestamp = hr_timestamp.strftime("%Y-%m-%d %H:%M:%S %Z")
         else:
@@ -89,14 +214,8 @@ def gauge_section(data: list = None):
                 arTop = VARIABLES["variable_2"].get("top_range")
                 arBot = VARIABLES["variable_2"].get("bottom_range")
                 sv.gauge(
-                    data[1],
-                    "Battery Voltage",
-                    gMode="number",
-                    cWidth=True,
-                    gSize="MED",
-                    sFix="V",
-                    arTop=int(arTop),
-                    arBot=int(arBot),
+                    data[1], "Battery Voltage", gMode="number", cWidth=True,
+                    gSize="MED", sFix="V", arTop=int(arTop), arBot=int(arBot),
                 )
             else:
                 st.error("No Data Available")
@@ -105,13 +224,8 @@ def gauge_section(data: list = None):
                 arTop = int(VARIABLES["variable_1"].get("top_range"))
                 arBot = int(VARIABLES["variable_1"].get("bottom_range"))
                 sv.gauge(
-                    data[0],
-                    "Phloton Unit Battery SoC",
-                    cWidth=True,
-                    gSize="MED",
-                    sFix=" %",
-                    arTop=arTop,
-                    arBot=arBot,
+                    data[0], "Phloton Unit Battery SoC", cWidth=True,
+                    gSize="MED", sFix=" %", arTop=arTop, arBot=arBot,
                 )
             else:
                 st.error("No Data Available")
@@ -120,13 +234,8 @@ def gauge_section(data: list = None):
                 arTop = int(VARIABLES["variable_3"].get("top_range"))
                 arBot = int(VARIABLES["variable_3"].get("bottom_range"))
                 sv.gauge(
-                    data[2],
-                    "Flask Average Temperature",
-                    cWidth=True,
-                    gSize="MED",
-                    sFix="°C",
-                    arTop=arTop,
-                    arBot=arBot,
+                    data[2], "Flask Average Temperature", cWidth=True,
+                    gSize="MED", sFix="°C", arTop=arTop, arBot=arBot,
                 )
             else:
                 st.error("No Data Available")
@@ -135,13 +244,8 @@ def gauge_section(data: list = None):
                 arTop = int(VARIABLES["variable_4"].get("top_range"))
                 arBot = int(VARIABLES["variable_4"].get("bottom_range"))
                 sv.gauge(
-                    data[3],
-                    "Ambient Temperature",
-                    cWidth=True,
-                    gSize="MED",
-                    sFix="°C",
-                    arTop=arTop,
-                    arBot=arBot,
+                    data[3], "Ambient Temperature", cWidth=True,
+                    gSize="MED", sFix="°C", arTop=arTop, arBot=arBot,
                 )
             else:
                 st.error("No Data Available")
@@ -154,44 +258,28 @@ def graph_section(node_client=None):
     container = st.container(border=True)
     with container:
         st.subheader(body="Visualization", anchor=False)
-        currentTime = int(time.time())  # to means recent time
+        currentTime = int(time_module.time())
         pastHour_Time = int(currentTime - 86400)
 
-        # -----------------------------------------Time range filter-----------------------------------------
-        datetime_cols = st.columns(
-            [1, 1, 0.2], gap="small", vertical_alignment="bottom"
-        )
+        datetime_cols = st.columns([1, 1, 0.2], gap="small", vertical_alignment="bottom")
 
         with datetime_cols[0]:
             from_cols = st.columns(2, gap="small")
             with from_cols[0]:
-                # st.text("From:")
                 from_start_datetime = st.date_input(
                     "From", key="from:date", value=st.session_state.from_date
                 )
             with from_cols[1]:
                 from_time_input = st.time_input(
-                    "time",
-                    key="from:time",
-                    value=st.session_state.from_time,
+                    "time", key="from:time", value=st.session_state.from_time,
                     label_visibility="hidden",
                 )
-
             if from_start_datetime and from_time_input:
                 st.session_state.from_time = from_time_input
                 st.session_state.from_date = from_start_datetime
-
-                combined_datetime = pd.to_datetime(
-                    f"{from_start_datetime} {from_time_input}"
-                )
-                # st.write("Combined datetime:", combined_datetime)
-                # Define the India time zone
+                combined_datetime = pd.to_datetime(f"{from_start_datetime} {from_time_input}")
                 india_tz = pytz.timezone("Asia/Kolkata")
-
-                # Localize the combined datetime to the India time zone
                 localized_datetime = india_tz.localize(combined_datetime)
-
-                # Convert the localized datetime to epoch time
                 from_time = int(localized_datetime.timestamp())
                 if from_time != st.session_state.from_input_time:
                     st.session_state.from_input_time = from_time
@@ -200,38 +288,26 @@ def graph_section(node_client=None):
         with datetime_cols[1]:
             to_cols = st.columns(2)
             with to_cols[0]:
-                # st.text("To:")
                 to_start_datetime = st.date_input(
                     "To", key="to:date", value=st.session_state.to_date
                 )
             with to_cols[1]:
                 to_time_input = st.time_input(
-                    "time",
-                    key="to:time",
-                    value=st.session_state.to_time,
+                    "time", key="to:time", value=st.session_state.to_time,
                     label_visibility="hidden",
                 )
             if to_start_datetime and to_time_input:
                 st.session_state.to_time = to_time_input
                 st.session_state.to_date = to_start_datetime
-                combined_datetime = pd.to_datetime(
-                    f"{to_start_datetime} {to_time_input}"
-                )
-                # st.write("Combined datetime:", combined_datetime)
-
-                # Define the India time zone
+                combined_datetime = pd.to_datetime(f"{to_start_datetime} {to_time_input}")
                 india_tz = pytz.timezone("Asia/Kolkata")
-
-                # Localize the combined datetime to the India time zone
                 localized_datetime = india_tz.localize(combined_datetime)
-
-                # Convert the localized datetime to epoch time
                 to_time = int(localized_datetime.timestamp())
                 if to_time != st.session_state.to_input_time:
                     st.session_state.to_input_time = to_time
                     st.rerun()
+
         default_time_range = get_default_time_range()
-        # Check if the dates and times are within the tolerance range
         if (
             from_start_datetime == default_time_range[2]
             and is_within_tolerance(from_time_input, default_time_range[3])
@@ -249,14 +325,12 @@ def graph_section(node_client=None):
             )
             if reset_btn:
                 auto_update_time_range(True)
-                # st.rerun()
 
         if st.session_state.var_auto_update_time_range:
             update_time_range()
 
-        # ======================= charts ===========================
-        interval=st.session_state.to_input_time - st.session_state.from_input_time
-        agg_interval=0
+        interval = st.session_state.to_input_time - st.session_state.from_input_time
+        agg_interval = 0
         if interval > 2592000:
             agg_interval = 60
         elif interval > 864000:
@@ -265,71 +339,56 @@ def graph_section(node_client=None):
             agg_interval = 10
         elif interval <= 100080:
             agg_interval = 0
+
         options: list = None
         if st.session_state.view_role == "user":
             options = [
-                "Battery Voltage",
-                "Unit Battery SoC",
-                "Flask Average Temperature",
-                "Ambient Temperature",
+                "Battery Voltage", "Unit Battery SoC",
+                "Flask Average Temperature", "Ambient Temperature",
             ]
         else:
             options = [
-                "Battery Voltage",
-                "Unit Battery SoC",
-                "Flask Average Temperature",
-                "Ambient Temperature",
-                "TEC Current",
-                "HS FAN Current",
-                "CS FAN Current",
-                "Flask Top Temperature",
-                "Heat Sink Temperature",
-                "Cold Sink Temperature",
-                "Flask Down Temperature",
-                "TEC Status",
-                "HS FAN Status",
-                "CS FAN Status",
-                "TEC DutyCycle",
-                "HS FAN DutyCycle",
-                "CS FAN DutyCycle",
+                "Battery Voltage", "Unit Battery SoC",
+                "Flask Average Temperature", "Ambient Temperature",
+                "TEC Current", "HS FAN Current", "CS FAN Current",
+                "Flask Top Temperature", "Heat Sink Temperature",
+                "Cold Sink Temperature", "Flask Down Temperature",
+                "TEC Status", "HS FAN Status", "CS FAN Status",
+                "TEC DutyCycle", "HS FAN DutyCycle", "CS FAN DutyCycle",
             ]
         VARIABLES = st.session_state.variablesIdentifier
-        # st.write(VARIABLES)
 
-        multislect_cols = st.columns([3.5,1,0.5], gap="medium",vertical_alignment="bottom")
+        multislect_cols = st.columns([3.5, 1, 0.5], gap="medium", vertical_alignment="bottom")
         with multislect_cols[0]:
-
             show_charts = st.multiselect(
-                "Show Charts",
-                placeholder="Show Charts",
-                options=options,
-                default=options[0],
-                label_visibility="hidden",
-                on_change=change_callback,
+                "Show Charts", placeholder="Show Charts", options=options,
+                default=options[0], label_visibility="hidden", on_change=change_callback,
             )
             if show_charts != [] or is_options_changed:
                 if show_charts != st.session_state.show_charts:
                     st.session_state.show_charts = show_charts
                 is_options_changed = False
-        with multislect_cols[1]:
-            pass
         with multislect_cols[2]:
-            submit=st.button(label="Submit",use_container_width=True)
+            submit = st.button(label="Submit", use_container_width=True)
             if submit:
                 st.rerun()
 
         for i in range(0, len(st.session_state.show_charts), 3):
             r2_graph_cols = st.columns([1, 1, 1], gap="small")
-            for j, chart in enumerate(st.session_state.show_charts[i : i + 3]):
+            for j, chart in enumerate(st.session_state.show_charts[i: i + 3]):
                 with r2_graph_cols[j]:
                     VARIABLE_KEY = get_variable_key_by_name(VARIABLES, chart)
                     if VARIABLE_KEY is not None:
                         VARIABLE = VARIABLES.get(VARIABLE_KEY)
-                        data=pd.DataFrame()
-                        aggregate_or_value="value"
+                        data = pd.DataFrame()
+                        aggregate_or_value = "value"
                         if interval <= 100080:
-                            data=node_client.get_data(variable_identifier=VARIABLE.get("identifier"),from_time=st.session_state.from_input_time,to_time=st.session_state.to_input_time)
-                            aggregate_or_value="value"
+                            data = node_client.get_data(
+                                variable_identifier=VARIABLE.get("identifier"),
+                                from_time=st.session_state.from_input_time,
+                                to_time=st.session_state.to_input_time,
+                            )
+                            aggregate_or_value = "value"
                         else:
                             data = node_client.get_aggData(
                                 variable_identifier=VARIABLE.get("identifier"),
@@ -337,20 +396,17 @@ def graph_section(node_client=None):
                                 to_time=st.session_state.to_input_time,
                                 agg_interval_mins=agg_interval,
                             )
-                            aggregate_or_value="aggregate"
-                        minData=None
-                        maxData=None
+                            aggregate_or_value = "aggregate"
+                        minData = None
+                        maxData = None
                         if not data.empty:
-                            minData=data[aggregate_or_value].min()
-                            maxData=data[aggregate_or_value].max()
+                            minData = data[aggregate_or_value].min()
+                            maxData = data[aggregate_or_value].max()
                         draw_chart(
-                            chart_title=chart,
-                            chart_data=data,
+                            chart_title=chart, chart_data=data,
                             y_axis_title=VARIABLE.get("unit"),
-                            bottomRange=minData,
-                            topRange=maxData,
-                            agg=agg_interval,
-                            aggregate_or_value=aggregate_or_value
+                            bottomRange=minData, topRange=maxData,
+                            agg=agg_interval, aggregate_or_value=aggregate_or_value,
                         )
                     else:
                         st.subheader(chart)
@@ -370,23 +426,14 @@ def map_section(node_client=None):
         if res.get("isSuccess") is True and res.get("data") is not None:
             location = res.get("data")
             last_updated = res.get("timestamp")
-            indian_time_zone = pytz.timezone("Asia/Kolkata")  # set time zone
+            indian_time_zone = pytz.timezone("Asia/Kolkata")
             hr_timestamp = datetime.fromtimestamp(last_updated, indian_time_zone)
             fm_hr_timestamp = hr_timestamp.strftime("%Y-%m-%d %H:%M:%S %Z")
             st.text(f"Last Updated: {fm_hr_timestamp}")
-
             latitude = location.get("lat")
             longitude = location.get("long")
-            locationData = pd.DataFrame(
-                {"latitude": [latitude], "longitude": [longitude]}
-            )
-            st.map(
-                locationData,
-                zoom=14,
-                color="#0044ff",
-                size=25,
-                use_container_width=True,
-            )
+            locationData = pd.DataFrame({"latitude": [latitude], "longitude": [longitude]})
+            st.map(locationData, zoom=14, color="#0044ff", size=25, use_container_width=True)
         else:
             st.error("No Data Available")
 
