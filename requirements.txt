@@ -12,7 +12,7 @@ googleapis-common-protos <1.66.0
 protobuf<5.29.3
 firestore<0.0.8
 pandas
-altair
+altair<5.5.0
 pytz
 requests
 streamlit-autorefresh
