@@ -168,18 +168,37 @@ def _draw_report_modal(unit_number: int, node_id: str, node_client):
                 f"_to_{to_dt.strftime('%Y%m%d')}.html"
             )
 
-            st.download_button(
-                label="⬇ Download Report (HTML)",
-                data=html_str.encode("utf-8"),
-                file_name=filename,
-                mime="text/html",
-                use_container_width=True,
+          # ✅ REPLACE with this:
+from report.pdf_generator import generate_report_pdf
+from report.report_generator import _build_stats
+
+col_html, col_pdf = st.columns(2)
+
+with col_html:
+    st.download_button(
+        label="⬇ Download HTML",
+        data=html_str.encode("utf-8"),
+        file_name=filename,
+        mime="text/html",
+        use_container_width=True,
+    )
+
+with col_pdf:
+    if st.button("📄 Generate PDF", use_container_width=True, key=f"gen_pdf_{unit_number}"):
+        with st.spinner("Generating PDF…"):
+            pdf_bytes = generate_report_pdf(
+                data=stats,
+                unit_number=unit_number,
+                node_id=node_id,
             )
-            st.info(
-                "💡 **To save as PDF:** Open the downloaded file in Chrome/Edge → "
-                "press **Ctrl+P** (or Cmd+P on Mac) → choose **'Save as PDF'** → Print. "
-                "The report is print-optimised."
-            )
+        st.download_button(
+            label="⬇ Download PDF",
+            data=pdf_bytes,
+            file_name=filename.replace(".html", ".pdf"),
+            mime="application/pdf",
+            use_container_width=True,
+            key=f"dl_pdf_{unit_number}",
+        )
 
     st.divider()
 
