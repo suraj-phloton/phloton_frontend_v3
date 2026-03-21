@@ -186,12 +186,9 @@ with col_html:
 
 with col_pdf:
     if st.button("📄 Generate PDF", use_container_width=True, key=f"gen_pdf_{unit_number}"):
-        with st.spinner("Generating PDF…"):
-            pdf_bytes = generate_report_pdf(
-                data=stats,
-                unit_number=unit_number,
-                node_id=node_id,
-            )
+        with st.spinner("Generating PDF… (30–60 sec)"):
+            from report.pdf_generator import generate_report_pdf
+            pdf_bytes = generate_report_pdf(report_stats, unit_number, node_id)
         st.download_button(
             label="⬇ Download PDF",
             data=pdf_bytes,
