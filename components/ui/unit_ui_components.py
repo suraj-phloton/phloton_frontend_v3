@@ -144,15 +144,14 @@ def _draw_report_modal(unit_number: int, node_id: str, node_client):
             st.warning("⚠ Range > 90 days may take a few minutes.")
 
         if st.button(
-            "⚡ Generate & Download Report",
+            "⚡ Generate Report",
             key=f"gen_report_btn_{unit_number}",
             type="primary",
             use_container_width=True,
         ):
-            # Import here to avoid circular imports at module load
             from report.report_generator import generate_report_html
 
-            html_str = generate_report_html(
+            html_str, report_stats = generate_report_html(
                 node_client=node_client,
                 unit_number=unit_number,
                 node_id=node_id,
@@ -161,42 +160,62 @@ def _draw_report_modal(unit_number: int, node_id: str, node_client):
                 to_epoch=to_epoch,
                 chunk_days=1,
             )
-html_str, report_stats = generate_report_html(...)
 
-            filename = (
+            # Store stats in session state so PDF button can use them
+            st.session_state[f"report_stats_{unit_number}"]  = report_stats
+            st.session_state[f"report_html_{unit_number}"]   = html_str
+            st.session_state[f"report_from_{unit_number}"]   = from_dt
+            st.session_state[f"report_to_{unit_number}"]     = to_dt
+
+        # Show download buttons if a report has been generated
+        if st.session_state.get(f"report_html_{unit_number}"):
+            html_str    = st.session_state[f"report_html_{unit_number}"]
+            report_stats= st.session_state[f"report_stats_{unit_number}"]
+            from_dt_s   = st.session_state[f"report_from_{unit_number}"]
+            to_dt_s     = st.session_state[f"report_to_{unit_number}"]
+
+            filename_base = (
                 f"Phloton_Unit{unit_number}"
-                f"_{from_dt.strftime('%Y%m%d')}"
-                f"_to_{to_dt.strftime('%Y%m%d')}.html"
+                f"_{from_dt_s.strftime('%Y%m%d')}"
+                f"_to_{to_dt_s.strftime('%Y%m%d')}"
             )
 
-          # ✅ REPLACE with this:
-from report.pdf_generator import generate_report_pdf
-from report.report_generator import _build_stats
+            col_html, col_pdf = st.columns(2)
 
-col_html, col_pdf = st.columns(2)
+            with col_html:
+                st.download_button(
+                    label="⬇ Download HTML",
+                    data=html_str.encode("utf-8"),
+                    file_name=f"{filename_base}.html",
+                    mime="text/html",
+                    use_container_width=True,
+                    key=f"dl_html_{unit_number}",
+                )
 
-with col_html:
-    st.download_button(
-        label="⬇ Download HTML",
-        data=html_str.encode("utf-8"),
-        file_name=filename,
-        mime="text/html",
-        use_container_width=True,
-    )
+            with col_pdf:
+                if st.button(
+                    "📄 Generate PDF",
+                    use_container_width=True,
+                    key=f"gen_pdf_btn_{unit_number}",
+                ):
+                    with st.spinner("Generating PDF… (30–60 sec)"):
+                        from report.pdf_generator import generate_report_pdf
+                        pdf_bytes = generate_report_pdf(
+                            data=report_stats,
+                            unit_number=unit_number,
+                            node_id=node_id,
+                        )
+                    st.session_state[f"report_pdf_{unit_number}"] = pdf_bytes
 
-with col_pdf:
-    if st.button("📄 Generate PDF", use_container_width=True, key=f"gen_pdf_{unit_number}"):
-        with st.spinner("Generating PDF… (30–60 sec)"):
-            from report.pdf_generator import generate_report_pdf
-            pdf_bytes = generate_report_pdf(report_stats, unit_number, node_id)
-        st.download_button(
-            label="⬇ Download PDF",
-            data=pdf_bytes,
-            file_name=filename.replace(".html", ".pdf"),
-            mime="application/pdf",
-            use_container_width=True,
-            key=f"dl_pdf_{unit_number}",
-        )
+            if st.session_state.get(f"report_pdf_{unit_number}"):
+                st.download_button(
+                    label="⬇ Download PDF",
+                    data=st.session_state[f"report_pdf_{unit_number}"],
+                    file_name=f"{filename_base}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key=f"dl_pdf_{unit_number}",
+                )
 
     st.divider()
 
