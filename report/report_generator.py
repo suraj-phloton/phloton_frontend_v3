@@ -171,7 +171,7 @@ def _build_stats(all_data, from_epoch, to_epoch):
     chart_labels = [ts_label(p["timestamp"]) for p in soc_pts]
 
     def sampled_vals(var):
-        pts = all_data.get(var, [])[::SAMPLE]
+        pts = all_data.get(var, [::SAMPLE])
         lookup = {p["timestamp"]: _safe(p["value"]) for p in pts}
         return [lookup.get(p["timestamp"]) for p in soc_pts]
 
