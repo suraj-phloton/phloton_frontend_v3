@@ -1,4 +1,3 @@
-
 """
 report/pdf_generator.py
 ────────────────────────
@@ -127,6 +126,87 @@ def _make_bar_chart(labels, values, colors_list, ylabel, title,
                     color="#1a2e27", fontweight="600")
     fig.tight_layout()
     return _fig_to_base64(fig)
+
+
+def _make_map_chart(map_path: list, figsize=(7.5, 3.5)) -> str:
+    """Plot GPS movement path as a scatter/line chart, return base64 PNG."""
+    if not map_path:
+        return None
+
+    lats = [p["lat"] for p in map_path]
+    lngs = [p["lng"] for p in map_path]
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Draw path line
+    ax.plot(lngs, lats, color=PHLOTON_MUTED, linewidth=0.8, alpha=0.5, zorder=1)
+
+    # Colour points by time index (light → dark = early → late)
+    n = len(map_path)
+    colors = [plt.cm.YlGn(0.3 + 0.7 * i / max(n - 1, 1)) for i in range(n)]
+    sc = ax.scatter(lngs, lats, c=range(n), cmap="YlGn", s=18,
+                    zorder=2, linewidths=0.3, edgecolors="#1a8c5b")
+
+    # Mark start (green) and end (red)
+    ax.scatter([lngs[0]],  [lats[0]],  color=PHLOTON_GREEN, s=80,
+               zorder=4, marker="^", label="Start")
+    ax.scatter([lngs[-1]], [lats[-1]], color=PHLOTON_RED,   s=80,
+               zorder=4, marker="v", label="Last Position")
+
+    # Annotate start/end timestamps if available
+    if map_path[0].get("ts"):
+        ax.annotate(f"  Start\n  {map_path[0]['ts']}",
+                    (lngs[0], lats[0]), fontsize=6, color=PHLOTON_GREEN,
+                    va="bottom")
+    if map_path[-1].get("ts"):
+        ax.annotate(f"  Last\n  {map_path[-1]['ts']}",
+                    (lngs[-1], lats[-1]), fontsize=6, color=PHLOTON_RED,
+                    va="top")
+
+    # Colourbar to show time progression
+    cbar = plt.colorbar(sc, ax=ax, pad=0.02, fraction=0.025)
+    cbar.set_label("Time progression →", fontsize=7, color=PHLOTON_MUTED)
+    cbar.set_ticks([])
+
+    ax.set_xlabel("Longitude", fontsize=7.5, color=PHLOTON_MUTED)
+    ax.set_ylabel("Latitude",  fontsize=7.5, color=PHLOTON_MUTED)
+    ax.set_title("Device Movement Path", fontsize=9, fontweight="bold",
+                 color="#1a2e27", pad=6)
+    ax.legend(fontsize=7, loc="upper left",
+              framealpha=0.7, edgecolor=PHLOTON_BORDER)
+    ax.yaxis.grid(True)
+    ax.xaxis.grid(True)
+
+    # Add padding around extent
+    lat_pad = max((max(lats) - min(lats)) * 0.1, 0.002)
+    lng_pad = max((max(lngs) - min(lngs)) * 0.1, 0.002)
+    ax.set_xlim(min(lngs) - lng_pad, max(lngs) + lng_pad)
+    ax.set_ylim(min(lats) - lat_pad, max(lats) + lat_pad)
+
+    fig.tight_layout()
+    return _fig_to_base64(fig)
+
+
+def _make_map_stats_html(map_path: list) -> str:
+    """Build a small HTML stats table for the location section."""
+    if not map_path:
+        return "<p style='color:#9db8ad;font-size:8pt;'>No GPS data recorded in this session.</p>"
+
+    lats = [p["lat"] for p in map_path]
+    lngs = [p["lng"] for p in map_path]
+    unique = len({(p["lat"], p["lng"]) for p in map_path})
+    start_ts = map_path[0].get("ts", "—")
+    end_ts   = map_path[-1].get("ts", "—")
+
+    return f"""
+    <table class="data-table" style="width:auto;min-width:260px;">
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Unique positions</td><td class="num">{unique}</td></tr>
+      <tr><td>Lat range</td><td class="num">{min(lats):.5f}° – {max(lats):.5f}°</td></tr>
+      <tr><td>Lng range</td><td class="num">{min(lngs):.5f}° – {max(lngs):.5f}°</td></tr>
+      <tr><td>First GPS fix</td><td class="num">{start_ts}</td></tr>
+      <tr><td>Last GPS fix</td><td class="num">{end_ts}</td></tr>
+    </table>"""
 
 
 def _make_day_charts(day_charts: dict, date: str) -> dict:
@@ -466,6 +546,16 @@ Spikes above 8°C indicate loading/door-open events; TEC recovered promptly each
 <div class="sec-hdr"><span class="sec-tag">Day-wise</span><span class="sec-title">Daily Breakdown</span><div class="sec-line"></div></div>
 {day_sections}
 
+<!-- PAGE BREAK before location -->
+<div class="page-break"></div>
+
+<!-- SECTION: LOCATION & MOVEMENT -->
+<div class="sec-hdr"><span class="sec-tag">GPS</span><span class="sec-title">Device Location &amp; Movement</span><div class="sec-line"></div></div>
+<div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:10px;">
+  <div style="flex:1;">{img(charts.get("map_chart"))}</div>
+  <div style="width:240px;">{charts.get("map_stats_html","")}</div>
+</div>
+
 <!-- FOOTER -->
 <div class="report-footer">
   <strong>Phloton · Unit {unit_number}</strong>
@@ -529,6 +619,11 @@ def generate_report_pdf(data: dict, unit_number: int, node_id: str) -> bytes:
     charts["day"] = {}
     for d in ov["dates"]:
         charts["day"][d] = _make_day_charts(data["day_charts"], d)
+
+    # ── Map / location chart ──────────────────────────────────────────────────
+    map_path = data.get("map_path", [])
+    charts["map_chart"]      = _make_map_chart(map_path)
+    charts["map_stats_html"] = _make_map_stats_html(map_path)
 
     # ── Render HTML ───────────────────────────────────────────────────────────
     html_str = _render_pdf_html(data, unit_number, node_id, charts)
