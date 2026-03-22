@@ -35,7 +35,7 @@ PHLOTON_BG     = "#f4f6f5"
 PHLOTON_BORDER = "#e0e8e4"
 
 plt.rcParams.update({
-    "font.family":      "DejaVu Sans",
+    "font.family":      "Liberation Sans",
     "font.size":        8,
     "axes.spines.top":  False,
     "axes.spines.right":False,
@@ -323,20 +323,20 @@ def _render_pdf_html(data: dict, unit_number: int, node_id: str,
     margin: 14mm 14mm 12mm 14mm;
     @top-right {{
       content: "Phloton · Unit {unit_number} · Confidential";
-      font-family: "DejaVu Sans", sans-serif;
+      font-family: "Liberation Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
       font-size: 7pt;
       color: #9db8ad;
     }}
     @bottom-center {{
       content: "Page " counter(page) " of " counter(pages);
-      font-family: "DejaVu Sans", sans-serif;
+      font-family: "Liberation Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
       font-size: 7pt;
       color: #9db8ad;
     }}
   }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
-    font-family: "DejaVu Sans", sans-serif;
+    ffont-family: "Liberation Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 9pt;
     color: #1a2e27;
     line-height: 1.5;
