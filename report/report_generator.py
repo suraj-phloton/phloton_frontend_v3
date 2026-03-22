@@ -160,20 +160,21 @@ def _build_stats(all_data, from_epoch, to_epoch):
             "tec_uptime": round(100 * tec_on_d / max(len(tec_d), 1), 1),
         }
 
-    # Chart data (sampled)
-    SAMPLE = max(1, total_rows // 1200)
-    soc_pts = all_data.get("SOC", [])[::SAMPLE]
-
     # Build timestamp → datetime label map
     def ts_label(ts):
         return datetime.fromtimestamp(ts, IST).strftime("%m-%d %H:%M")
 
-    chart_labels = [ts_label(p["timestamp"]) for p in soc_pts]
-
-    def sampled_vals(var):
-        pts = all_data.get(var, [])[::SAMPLE]
-        lookup = {p["timestamp"]: _safe(p["value"]) for p in pts}
-        return [lookup.get(p["timestamp"]) for p in soc_pts]
+    def sampled_series(var, max_pts=1200):
+        """Sample a variable independently — no cross-variable timestamp alignment."""
+        pts = all_data.get(var, [])
+        if not pts:
+            return {"labels": [], "values": []}
+        step = max(1, len(pts) // max_pts)
+        sampled = pts[::step]
+        return {
+            "labels": [ts_label(p["timestamp"]) for p in sampled],
+            "values": [_safe(p["value"]) for p in sampled],
+        }
 
     # Per-day charts
     day_charts = {}
@@ -241,11 +242,10 @@ def _build_stats(all_data, from_epoch, to_epoch):
         },
         "day_stats": day_stats,
         "trend": {
-            "labels": chart_labels,
-            "flask": sampled_vals("FlaskTopTemp"),
-            "soc":   sampled_vals("SOC"),
-            "bv":    sampled_vals("BATTVOLT"),
-            "pcb":   sampled_vals("PCBTemp"),
+            "flask": sampled_series("FlaskTopTemp"),
+            "soc":   sampled_series("SOC"),
+            "bv":    sampled_series("BATTVOLT"),
+            "pcb":   sampled_series("PCBTemp"),
         },
         "day_charts": day_charts,
         "map_path": map_path[::max(1, len(map_path)//300)],
@@ -623,13 +623,13 @@ function mkLine(id,labels,data,color,fc,min,max,fmt,tension=0.3){{
 }}
 
 const T=D.trend;
-mkLine('ov-flask',T.labels,T.flask,'#1a8c5b','rgb(26,140,91)',0,null,v=>v+'°C');
-mkLine('ov-soc',T.labels,T.soc,'#2563eb','rgb(37,99,235)',50,102,v=>v+'%');
-mkLine('ov-bv',T.labels,T.bv,'#d97706','rgb(217,119,6)',9,14,v=>v+'V');
-mkLine('fl-flask',T.labels,T.flask,'#1a8c5b','rgb(26,140,91)',0,null,v=>v+'°C');
-mkLine('fl-pcb',T.labels,T.pcb,'#d97706','rgb(217,119,6)',30,44,v=>v+'°C');
-mkLine('bt-soc',T.labels,T.soc,'#2563eb','rgb(37,99,235)',40,102,v=>v+'%');
-mkLine('bt-bv',T.labels,T.bv,'#2563eb','rgb(37,99,235)',9,14,v=>v+'V');
+mkLine('ov-flask',T.flask.labels,T.flask.values,'#1a8c5b','rgb(26,140,91)',0,null,v=>v+'°C');
+mkLine('ov-soc',T.soc.labels,T.soc.values,'#2563eb','rgb(37,99,235)',50,102,v=>v+'%');
+mkLine('ov-bv',T.bv.labels,T.bv.values,'#d97706','rgb(217,119,6)',9,14,v=>v+'V');
+mkLine('fl-flask',T.flask.labels,T.flask.values,'#1a8c5b','rgb(26,140,91)',0,null,v=>v+'°C');
+mkLine('fl-pcb',T.pcb.labels,T.pcb.values,'#d97706','rgb(217,119,6)',30,44,v=>v+'°C');
+mkLine('bt-soc',T.soc.labels,T.soc.values,'#2563eb','rgb(37,99,235)',40,102,v=>v+'%');
+mkLine('bt-bv',T.bv.labels,T.bv.values,'#2563eb','rgb(37,99,235)',9,14,v=>v+'V');
 
 // Day panels
 (function(){{
