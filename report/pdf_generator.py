@@ -35,7 +35,7 @@ PHLOTON_BG     = "#f4f6f5"
 PHLOTON_BORDER = "#e0e8e4"
 
 plt.rcParams.update({
-    "font.family":      "Liberation Sans",
+    "font.family":      "DejaVu Sans",
     "font.size":        8,
     "axes.spines.top":  False,
     "axes.spines.right":False,
@@ -323,20 +323,20 @@ def _render_pdf_html(data: dict, unit_number: int, node_id: str,
     margin: 14mm 14mm 12mm 14mm;
     @top-right {{
       content: "Phloton · Unit {unit_number} · Confidential";
-      font-family: "Liberation Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-family: "DejaVu Sans", sans-serif;
       font-size: 7pt;
       color: #9db8ad;
     }}
     @bottom-center {{
       content: "Page " counter(page) " of " counter(pages);
-      font-family: "Liberation Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-family: "DejaVu Sans", sans-serif;
       font-size: 7pt;
       color: #9db8ad;
     }}
   }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
-    ffont-family: "Liberation Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-family: "DejaVu Sans", sans-serif;
     font-size: 9pt;
     color: #1a2e27;
     line-height: 1.5;
@@ -586,20 +586,20 @@ def generate_report_pdf(data: dict, unit_number: int, node_id: str) -> bytes:
     charts = {}
 
     charts["flask_full"] = _make_line_chart(
-        T["labels"], T["flask"], PHLOTON_GREEN, "°C",
+        T["flask"]["labels"], T["flask"]["values"], PHLOTON_GREEN, "°C",
         "Flask Top Temperature (°C) — Full Session",
         figsize=(7.5, 2.5), ymin=0,
     )
     charts["soc_full"] = _make_line_chart(
-        T["labels"], T["soc"], PHLOTON_BLUE, "%",
+        T["soc"]["labels"], T["soc"]["values"], PHLOTON_BLUE, "%",
         "Battery SOC (%)", figsize=(3.5, 2.1), ymin=40, ymax=102,
     )
     charts["bv_full"] = _make_line_chart(
-        T["labels"], T["bv"], PHLOTON_AMBER, "V",
+        T["bv"]["labels"], T["bv"]["values"], PHLOTON_AMBER, "V",
         "Battery Voltage (V)", figsize=(3.5, 2.1), ymin=9, ymax=14,
     )
     charts["pcb_full"] = _make_line_chart(
-        T["labels"], T["pcb"], PHLOTON_AMBER, "°C",
+        T["pcb"]["labels"], T["pcb"]["values"], PHLOTON_AMBER, "°C",
         "PCB Temperature (°C)", figsize=(3.5, 2.1), ymin=30,
     )
 
