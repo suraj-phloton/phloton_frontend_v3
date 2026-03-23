@@ -149,9 +149,9 @@ def _draw_report_modal(unit_number: int, node_id: str, node_client):
             type="primary",
             use_container_width=True,
         ):
-            from report.report_generator import generate_report_html
+            from report.report_generator import generate_report_html, generate_report_csv
 
-            html_str, report_stats = generate_report_html(
+            html_str, report_stats, all_data = generate_report_html(
                 node_client=node_client,
                 unit_number=unit_number,
                 node_id=node_id,
@@ -161,18 +161,20 @@ def _draw_report_modal(unit_number: int, node_id: str, node_client):
                 chunk_days=1,
             )
 
-            # Store stats in session state so PDF button can use them
-            st.session_state[f"report_stats_{unit_number}"]  = report_stats
-            st.session_state[f"report_html_{unit_number}"]   = html_str
-            st.session_state[f"report_from_{unit_number}"]   = from_dt
-            st.session_state[f"report_to_{unit_number}"]     = to_dt
+            # Store everything in session state
+            st.session_state[f"report_stats_{unit_number}"]   = report_stats
+            st.session_state[f"report_html_{unit_number}"]    = html_str
+            st.session_state[f"report_from_{unit_number}"]    = from_dt
+            st.session_state[f"report_to_{unit_number}"]      = to_dt
+            st.session_state[f"report_csv_{unit_number}"]     = generate_report_csv(all_data)
 
         # Show download buttons if a report has been generated
         if st.session_state.get(f"report_html_{unit_number}"):
-            html_str    = st.session_state[f"report_html_{unit_number}"]
-            report_stats= st.session_state[f"report_stats_{unit_number}"]
-            from_dt_s   = st.session_state[f"report_from_{unit_number}"]
-            to_dt_s     = st.session_state[f"report_to_{unit_number}"]
+            html_str     = st.session_state[f"report_html_{unit_number}"]
+            report_stats = st.session_state[f"report_stats_{unit_number}"]
+            csv_str      = st.session_state[f"report_csv_{unit_number}"]
+            from_dt_s    = st.session_state[f"report_from_{unit_number}"]
+            to_dt_s      = st.session_state[f"report_to_{unit_number}"]
 
             filename_base = (
                 f"Phloton_Unit{unit_number}"
@@ -180,7 +182,7 @@ def _draw_report_modal(unit_number: int, node_id: str, node_client):
                 f"_to_{to_dt_s.strftime('%Y%m%d')}"
             )
 
-            col_html, col_pdf = st.columns(2)
+            col_html, col_csv, col_pdf = st.columns(3)
 
             with col_html:
                 st.download_button(
@@ -190,6 +192,16 @@ def _draw_report_modal(unit_number: int, node_id: str, node_client):
                     mime="text/html",
                     use_container_width=True,
                     key=f"dl_html_{unit_number}",
+                )
+
+            with col_csv:
+                st.download_button(
+                    label="⬇ Download CSV",
+                    data=csv_str.encode("utf-8"),
+                    file_name=f"{filename_base}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key=f"dl_csv_{unit_number}",
                 )
 
             with col_pdf:
