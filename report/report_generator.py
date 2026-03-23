@@ -253,6 +253,52 @@ def _build_stats(all_data, from_epoch, to_epoch):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# CSV BUILDER
+# ─────────────────────────────────────────────────────────────────────────────
+
+def generate_report_csv(all_data: dict) -> str:
+    """
+    Takes the raw all_data dict (from _fetch_all_variables) and returns a
+    CSV string with:
+      - Column 1: Timestamp (epoch)
+      - Column 2: Datetime (IST)
+      - One column per variable, values aligned by timestamp
+
+    Empty cells where a variable has no reading at that timestamp.
+    """
+    import csv
+    import io
+
+    VARIABLES = list(all_data.keys())
+
+    # Collect all unique timestamps across every variable
+    all_timestamps = sorted({
+        p["timestamp"]
+        for pts in all_data.values()
+        for p in pts
+    })
+
+    # Build per-variable lookup: {timestamp: value}
+    lookup = {}
+    for var, pts in all_data.items():
+        lookup[var] = {p["timestamp"]: p.get("value", "") for p in pts}
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+
+    # Header row
+    writer.writerow(["Timestamp (epoch)", "Datetime"] + VARIABLES)
+
+    # One row per unique timestamp
+    for ts in all_timestamps:
+        dt = datetime.fromtimestamp(ts, IST).strftime("%Y-%m-%d %H:%M:%S")
+        row = [ts, dt] + [lookup[var].get(ts, "") for var in VARIABLES]
+        writer.writerow(row)
+
+    return buf.getvalue()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # HTML REPORT BUILDER
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -279,7 +325,7 @@ def generate_report_html(
         stats = _build_stats(all_data, from_epoch, to_epoch)
         status.update(label="✅ Report ready!", state="complete")
 
-    return _render_html(stats, unit_number, node_id), stats
+    return _render_html(stats, unit_number, node_id), stats, all_data
 
 
 # ─────────────────────────────────────────────────────────────────────────────
