@@ -20,7 +20,7 @@ refresh_interval = 30000
 
 any_report_open = any(
     st.session_state.get(f"show_report_modal_{i}", False)
-    for i in range(1, 22)
+    for i in range(1, 24)
 )
 
 if not any_report_open:
