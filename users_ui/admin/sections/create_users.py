@@ -33,7 +33,7 @@ def create_users_section():
                 email=st.text_input("Email").strip()
                 password=st.text_input("Password",type="password").strip()
                 confirm_password=st.text_input("Confirm Password",type="password").strip()
-                options = ["Unit-1", "Unit-2", "Unit-3", "Unit-4","Unit-5","Unit-6", "Unit-7", "Unit-8", "Unit-9","Unit-10","Unit-11","Unit-12","Unit-13","Unit-14","Unit-15","Unit-16","Unit-17","Unit-18","Unit-19","Unit-20","Unit-21"]
+                options = ["Unit-1", "Unit-2", "Unit-3", "Unit-4","Unit-5","Unit-6", "Unit-7", "Unit-8", "Unit-9","Unit-10","Unit-11","Unit-12","Unit-13","Unit-14","Unit-15","Unit-16","Unit-17","Unit-18","Unit-19","Unit-20","Unit-21","Unit-22","Unit-23","Unit-24"]
                 permissions = st.pills("Permissions", options, selection_mode="multi")
                 submit_button = st.form_submit_button(label="Submit")
                 if submit_button:
