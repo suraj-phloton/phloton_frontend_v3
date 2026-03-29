@@ -18,6 +18,6 @@ headless = true
 [theme]
 base = "dark"
 primaryColor = "#1a8c5b"
-backgroundColor = "#0f1f1a"
+backgroundColor = "#4f5253"
 secondaryBackgroundColor = "#1e3a32"
 textColor = "#e8f5ee"
