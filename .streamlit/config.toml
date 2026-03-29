@@ -17,7 +17,7 @@ headless = true
 
 [theme]
 base = "dark"
-primaryColor = "#1a8c5b"
+primaryColor = "#5890ab"
 backgroundColor = "#32312e"
 secondaryBackgroundColor = "#5890ab"
 textColor = "#e8f5ee"
