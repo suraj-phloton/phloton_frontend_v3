@@ -122,6 +122,10 @@ def edits_user_ui():
                     "Unit-22",
                     "Unit-23",
                     "Unit-24",
+                    "Unit-25",
+                    "Unit-26",
+                    "Unit-27",
+                    "Unit-28",
                 ]
                 permissions = st.pills("Permissions", options, selection_mode="multi")
                 edit_req_payload["permissions"] = permissions
