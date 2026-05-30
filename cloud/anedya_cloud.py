@@ -5,6 +5,83 @@ import pandas as pd
 import pytz
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# SENSOR BOUNDS — physical/electrical sanity check per variable
+# ─────────────────────────────────────────────────────────────────────────────
+# Readings outside these ranges are hardware-impossible (sensor disconnect,
+# ADC glitch, BMS transient). They must be dropped before they reach a chart
+# or a report — a single 50V spike makes the entire chart y-axis go to 50V
+# even when surrounded by valid 12V readings.
+
+_BOUNDS = {
+    # Battery / electrical
+    "BATTVOLT":        (7.0, 13.0),     # 3S Li-Ion: cutoff 9.0V, full 12.6V
+    "SOC":             (0.0, 100.0),
+    "BATTERYCURRENT":  (-15.0, 15.0),   # ACS71240 ±15A range
+    "TECCurrent":      (-15.0, 15.0),
+    "HSFanCurrent":    (-15.0, 15.0),
+    "CSFanCurrent":    (-15.0, 15.0),
+    # Temperatures (NTC, realistic range; rejects -273 disconnect artifact)
+    "FlaskTopTemp":    (-30.0, 80.0),
+    "FlaskDownTemp":   (-30.0, 80.0),
+    "FlaskAvgTemp":    (-30.0, 80.0),
+    "PCBTemp":         (-30.0, 80.0),
+    "ColdSinkTemp":    (-30.0, 80.0),
+    "HeatSinkTemp":    (-30.0, 100.0),  # heatsink can run hotter
+    # PWM duty cycles (12-bit LEDC)
+    "TECdutycycle":    (0.0, 4095.0),
+    "HSFanDutyCycle":  (0.0, 4095.0),
+    "CSFanDutyCycle":  (0.0, 4095.0),
+    # Binary status
+    "TECstatus":       (0.0, 1.0),
+    "HSFanStatus":     (0.0, 1.0),
+    "CSFanStatus":     (0.0, 1.0),
+}
+
+
+def _is_valid_reading(variable_identifier: str, value) -> bool:
+    """True if `value` is within physical bounds for the given variable.
+    Unknown identifiers pass through unchanged (no bounds = no filter)."""
+    bounds = _BOUNDS.get(variable_identifier)
+    if not bounds:
+        return True
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return False
+    lo, hi = bounds
+    return lo <= v <= hi
+
+
+def _filter_points(points: list, variable_identifier: str) -> list:
+    """Drop list-of-dict points (from /v1/data/getData) whose value is
+    out of physical bounds. Used by the report generator."""
+    bounds = _BOUNDS.get(variable_identifier)
+    if not bounds:
+        return points
+    lo, hi = bounds
+    out = []
+    for p in points:
+        try:
+            v = float(p.get("value"))
+        except (TypeError, ValueError):
+            continue
+        if lo <= v <= hi:
+            out.append(p)
+    return out
+
+
+def _filter_df(df: pd.DataFrame, variable_identifier: str) -> pd.DataFrame:
+    """Drop DataFrame rows whose `value` column is out of physical bounds."""
+    if df.empty or "value" not in df.columns:
+        return df
+    bounds = _BOUNDS.get(variable_identifier)
+    if not bounds:
+        return df
+    lo, hi = bounds
+    return df[(df["value"] >= lo) & (df["value"] <= hi)].reset_index(drop=True)
+
+
 class Anedya:
     def __init__(self) -> None:
         pass
@@ -158,7 +235,7 @@ def get_data_paginated(
     df["Datetime"] = df["Datetime"].dt.tz_localize("UTC").dt.tz_convert(local_tz)
     df.set_index("Datetime", inplace=True)
     df.drop(columns=["timestamp"], inplace=True)
-    return df.reset_index()
+    return _filter_df(df.reset_index(), variable_identifier)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -233,6 +310,10 @@ def get_latestData(
             timestamp = (
                 json.loads(response_message).get("data")[nodeId].get("timestamp")
             )
+            # Suppress out-of-bounds readings so gauges show "—" instead of
+            # a 50V / 200°C garbage value from a sensor glitch.
+            if not _is_valid_reading(param_variable_identifier, data):
+                return {"isSuccess": False, "data": None, "timestamp": None}
             return {"isSuccess": True, "data": data, "timestamp": timestamp}
     else:
         st.error("Get LatestData API failed")
@@ -290,7 +371,7 @@ def get_data(
             )
             df.set_index("Datetime", inplace=True)
             df.drop(columns=["timestamp"], inplace=True)
-            chart_data = df.reset_index()
+            chart_data = _filter_df(df.reset_index(), variable_identifier)
         else:
             chart_data = pd.DataFrame()
         return chart_data
@@ -356,7 +437,7 @@ def anedya_getAggData(
             )
             df.set_index("Datetime", inplace=True)
             df.drop(columns=["timestamp"], inplace=True)
-            chart_data = df.reset_index()
+            chart_data = _filter_df(df.reset_index(), variable_identifier)
         else:
             chart_data = pd.DataFrame()
         return chart_data

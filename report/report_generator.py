@@ -30,7 +30,7 @@ import pandas as pd
 import pytz
 import streamlit as st
 
-from cloud.anedya_cloud import _fetch_chunk_raw
+from cloud.anedya_cloud import _fetch_chunk_raw, _filter_points
 
 
 # ─── Variable identifiers we care about for the report ────────────────────
@@ -75,6 +75,11 @@ def _fetch_all_variables(node_id, api_key, from_epoch, to_epoch, chunk_days, pro
             step += 1
             progress_bar.progress(step / total_steps, text=f"Fetching {var}…")
             time_module.sleep(0.2)
+
+        # Drop hardware-impossible readings (sensor glitches, ADC spikes)
+        # before they corrupt the report's min/max/avg stats. location is
+        # a dict payload, not a numeric reading, so _filter_points no-ops.
+        pts = _filter_points(pts, var)
 
         # Deduplicate + sort
         seen, unique = set(), []
