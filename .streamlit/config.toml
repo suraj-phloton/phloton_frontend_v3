@@ -1,13 +1,23 @@
+#[theme]
+#base="light"
+# Primary accent color for interactive elements.
+#primaryColor = "#FFFFFF"
+
+# Background color for the main content area.
+#backgroundColor = "#FFFFFF"
+
+# Background color used for the sidebar and most interactive widgets.
+#secondaryBackgroundColor = "#1E2640"
+
+# Color used for almost all text.
+#textColor = "#262730" 
+
 [server]
 headless = true
 
-# ─── Phloton dark theme ──────────────────────────────────────────────────────
-# Aligned with app.phloton.com so the two surfaces feel like siblings:
-#   navy bg, teal accent, light off-white text, dim navy-grey for secondary.
 [theme]
-base                     = "dark"
-primaryColor             = "#00C9A7"   # teal accent (buttons, links, focus)
-backgroundColor          = "#0A1628"   # navy — main pane
-secondaryBackgroundColor = "#12203A"   # slightly lighter navy — sidebar + cards
-textColor                = "#F0F4F8"   # primary text (warm white)
-font                     = "sans serif"
+base = "dark"
+primaryColor = "#5890ab"
+backgroundColor = "#32312e"
+secondaryBackgroundColor = "#5890ab"
+textColor = "#e8f5ee"
