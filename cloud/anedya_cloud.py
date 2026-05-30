@@ -72,14 +72,26 @@ def _filter_points(points: list, variable_identifier: str) -> list:
 
 
 def _filter_df(df: pd.DataFrame, variable_identifier: str) -> pd.DataFrame:
-    """Drop DataFrame rows whose `value` column is out of physical bounds."""
-    if df.empty or "value" not in df.columns:
+    """Drop DataFrame rows whose reading column is out of physical bounds.
+
+    Raw API responses (anedya /v1/data/getData) use column name `value`;
+    aggregated responses (anedya /v1/aggregates/variable/byTime) use
+    `aggregate`. Handle both — without this the filter silently no-ops on
+    any chart in agg mode (anything beyond ~1 day) and outliers like 1.5B
+    volts still blow up the y-axis.
+    """
+    if df.empty:
         return df
     bounds = _BOUNDS.get(variable_identifier)
     if not bounds:
         return df
     lo, hi = bounds
-    return df[(df["value"] >= lo) & (df["value"] <= hi)].reset_index(drop=True)
+    col = "value" if "value" in df.columns else (
+        "aggregate" if "aggregate" in df.columns else None
+    )
+    if col is None:
+        return df
+    return df[(df[col] >= lo) & (df[col] <= hi)].reset_index(drop=True)
 
 
 class Anedya:
